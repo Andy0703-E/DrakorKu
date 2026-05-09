@@ -1,4 +1,4 @@
-# 🎬 DrakorKu
+****# 🎬 DrakorKu
 
 DrakorKu adalah aplikasi streaming drama Korea berbasis web yang dibangun menggunakan React + Vite.  
 Aplikasi ini mengambil data dari API eksternal untuk menampilkan daftar drama, detail, episode, hingga pemutar video streaming.
@@ -68,32 +68,6 @@ https://wudyver-api.vercel.app/api/film/drakor/v7
 
 ?action=download_link&streaming={id}&movie_id={id}&episode_number={ep}
 
-
----
-
-## 📁 Struktur Project
-
-
-src/
-│
-├── api/
-│ └── config.js # Axios & API function
-│
-├── components/
-│ ├── Navbar.jsx
-│ ├── Card.jsx
-│
-├── pages/
-│ ├── Home.jsx
-│ ├── Detail.jsx
-│ ├── Watch.jsx
-│ ├── Search.jsx
-│
-├── App.jsx
-└── main.jsx
-
-
----
 
 ## ⚙️ Instalasi & Menjalankan Project
 
