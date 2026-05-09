@@ -1,7 +1,19 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { fetchStreamingLink, fetchDrakorInfo, fetchEpisodes } from '../api/config';
-import { ChevronLeft, ChevronRight, Settings, Share2, Play, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Share2, Download, Wifi } from 'lucide-react';
+
+// Deteksi kualitas terbaik berdasarkan jaringan
+function getQualityFromNetwork() {
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (!conn) return '720p'; // default jika tidak support
+
+  const { effectiveType, downlink } = conn;
+
+  if (effectiveType === '4g' || downlink >= 5) return '720p';
+  if (effectiveType === '3g' || downlink >= 1.5) return '480p';
+  return '360p';
+}
 
 export default function Watch() {
   const { id, ep } = useParams();
@@ -15,16 +27,37 @@ export default function Watch() {
   const [selectedQuality, setSelectedQuality] = useState('720p');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [playerKey, setPlayerKey] = useState(0); // force video remount
+  const [networkQuality, setNetworkQuality] = useState('');
+
+  const videoRef = useRef(null);
+  const savedTimeRef = useRef(0); // simpan posisi video sebelum ganti kualitas
+  const isSwitchingQuality = useRef(false); // flag: sedang ganti kualitas (bukan ganti episode)
 
   const currentEp = parseInt(ep) || 1;
 
+  // Auto-detect network quality saat pertama load dan saat koneksi berubah
+  useEffect(() => {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+
+    const updateQuality = () => {
+      const q = getQualityFromNetwork();
+      setNetworkQuality(q);
+    };
+
+    updateQuality();
+    conn?.addEventListener('change', updateQuality);
+    return () => conn?.removeEventListener('change', updateQuality);
+  }, []);
+
+  // Load data episode
   useEffect(() => {
     const getData = async () => {
       try {
         setLoading(true);
         setError(null);
         setVideoLinks(null);
+        savedTimeRef.current = 0; // reset posisi saat ganti episode
+        isSwitchingQuality.current = false;
 
         const [links, infoData, epData] = await Promise.all([
           fetchStreamingLink(streamingId, id, currentEp),
@@ -36,13 +69,12 @@ export default function Watch() {
         setInfo(infoData.data || infoData);
         setEpisodes(epData.data || []);
 
-        // Pilih kualitas terbaik yang tersedia
-        if (links?.['720p']) setSelectedQuality('720p');
+        // Pilih kualitas berdasarkan jaringan, tapi sesuaikan ketersediaan
+        const preferredQ = getQualityFromNetwork();
+        if (links?.[preferredQ]) setSelectedQuality(preferredQ);
+        else if (links?.['720p']) setSelectedQuality('720p');
         else if (links?.['480p']) setSelectedQuality('480p');
         else if (links?.['360p']) setSelectedQuality('360p');
-
-        // Force remount video element setiap ganti episode
-        setPlayerKey(prev => prev + 1);
 
       } catch (err) {
         console.error(err);
@@ -52,13 +84,32 @@ export default function Watch() {
       }
     };
 
-    if (streamingId) {
-      getData();
-    } else {
+    if (streamingId) getData();
+    else {
       setLoading(false);
       setError('Streaming ID tidak ditemukan. Kembali dan pilih episode.');
     }
-  }, [id, ep, streamingId]); // reactive terhadap perubahan episode
+  }, [id, ep, streamingId]);
+
+  // Saat ganti kualitas: simpan waktu sekarang, set flag, lalu ganti
+  const handleQualityChange = useCallback((q) => {
+    if (videoRef.current && !videoRef.current.paused) {
+      savedTimeRef.current = videoRef.current.currentTime;
+    } else if (videoRef.current) {
+      savedTimeRef.current = videoRef.current.currentTime;
+    }
+    isSwitchingQuality.current = true;
+    setSelectedQuality(q);
+  }, []);
+
+  // Setelah video baru bisa diputar: lanjut dari posisi tersimpan
+  const handleCanPlay = useCallback(() => {
+    if (isSwitchingQuality.current && savedTimeRef.current > 0 && videoRef.current) {
+      videoRef.current.currentTime = savedTimeRef.current;
+      videoRef.current.play().catch(() => {});
+      isSwitchingQuality.current = false;
+    }
+  }, []);
 
   const handleEpisodeClick = (epData) => {
     navigate(`/watch/${id}/${epData.episode_number}?streaming=${epData.streaming}`);
@@ -92,6 +143,11 @@ export default function Watch() {
           </div>
 
           <div className="flex items-center gap-3 text-gray-400">
+            {networkQuality && (
+              <span className="hidden md:flex items-center gap-1 text-xs text-emerald-400">
+                <Wifi size={14} /> {networkQuality}
+              </span>
+            )}
             <Share2 size={18} className="hover:text-white cursor-pointer" />
             <Settings size={18} className="hover:text-white cursor-pointer" />
           </div>
@@ -115,11 +171,13 @@ export default function Watch() {
           </div>
         ) : videoLinks?.[selectedQuality] ? (
           <video
-            key={`${playerKey}-${selectedQuality}`}
+            ref={videoRef}
+            key={`${id}-${ep}-${selectedQuality}`}
             controls
             autoPlay
             className="w-full h-full"
             poster={info?.image}
+            onCanPlay={handleCanPlay}
           >
             <source src={videoLinks[selectedQuality]} type="video/mp4" />
             Browser tidak support video HTML5.
@@ -137,37 +195,55 @@ export default function Watch() {
       {/* INFO SECTION */}
       <div className="container mx-auto px-4 md:px-6 py-8">
 
-        {/* QUALITY + NAV */}
         <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
 
-          {/* Quality Selector */}
+          {/* Quality + Download */}
           <div>
-            <h2 className="text-lg font-bold mb-3">Episode {currentEp}</h2>
-            <p className="text-gray-400 text-sm mb-3">
-              Kualitas: <span className="text-primary font-bold">{selectedQuality}</span>
+            <h2 className="text-lg font-bold mb-1">Episode {currentEp}</h2>
+
+            {/* Network hint */}
+            {networkQuality && (
+              <p className="text-xs text-emerald-400 mb-3 flex items-center gap-1">
+                <Wifi size={12} />
+                Kualitas otomatis: <span className="font-bold">{networkQuality}</span>
+                &nbsp;(berdasarkan kecepatan jaringan)
+              </p>
+            )}
+
+            {/* Quality Selector */}
+            <p className="text-gray-400 text-sm mb-2">
+              Sedang diputar: <span className="text-primary font-bold">{selectedQuality}</span>
+              {isSwitchingQuality.current && (
+                <span className="ml-2 text-xs text-yellow-400">Melanjutkan dari posisi sebelumnya...</span>
+              )}
             </p>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-3 flex-wrap mb-5">
               {['360p', '480p', '720p'].map(q =>
                 videoLinks?.[q] && (
                   <button
                     key={q}
-                    onClick={() => setSelectedQuality(q)}
+                    onClick={() => handleQualityChange(q)}
                     className={`px-5 py-2 rounded-lg font-bold transition ${
                       selectedQuality === q
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-white ring-2 ring-primary/50'
                         : 'bg-white/5 text-gray-400 hover:bg-white/10'
                     }`}
                   >
                     {q}
+                    {q === networkQuality && (
+                      <span className="ml-1 text-[10px] text-emerald-400">✦</span>
+                    )}
                   </button>
                 )
               )}
             </div>
 
-            {/* DOWNLOAD LINKS */}
+            {/* Download */}
             {!loading && !error && videoLinks && (
-              <div className="mt-5">
-                <p className="text-gray-400 text-xs mb-2 uppercase tracking-widest">Download Episode {currentEp}</p>
+              <div>
+                <p className="text-gray-400 text-xs mb-2 uppercase tracking-widest">
+                  Download Episode {currentEp}
+                </p>
                 <div className="flex gap-2 flex-wrap">
                   {['360p', '480p', '720p'].map(q =>
                     videoLinks?.[q] && (
@@ -190,7 +266,7 @@ export default function Watch() {
           </div>
 
           {/* Prev / Next Nav */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 self-start mt-2">
             {prevEp ? (
               <button
                 onClick={() => handleEpisodeClick(prevEp)}
@@ -198,9 +274,7 @@ export default function Watch() {
               >
                 <ChevronLeft size={16} /> Ep {prevEp.episode_number}
               </button>
-            ) : (
-              <span />
-            )}
+            ) : <span />}
             {nextEp ? (
               <button
                 onClick={() => handleEpisodeClick(nextEp)}
@@ -208,9 +282,7 @@ export default function Watch() {
               >
                 Ep {nextEp.episode_number} <ChevronRight size={16} />
               </button>
-            ) : (
-              <span />
-            )}
+            ) : <span />}
           </div>
 
         </div>
