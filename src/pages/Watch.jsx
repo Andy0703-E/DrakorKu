@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { fetchStreamingLink, fetchDrakorInfo, fetchEpisodes } from '../api/config';
-import { ChevronLeft, ChevronRight, Settings, Share2, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Share2, Play, Download } from 'lucide-react';
 
 export default function Watch() {
   const { id, ep } = useParams();
@@ -163,6 +163,30 @@ export default function Watch() {
                 )
               )}
             </div>
+
+            {/* DOWNLOAD LINKS */}
+            {!loading && !error && videoLinks && (
+              <div className="mt-5">
+                <p className="text-gray-400 text-xs mb-2 uppercase tracking-widest">Download Episode {currentEp}</p>
+                <div className="flex gap-2 flex-wrap">
+                  {['360p', '480p', '720p'].map(q =>
+                    videoLinks?.[q] && (
+                      <a
+                        key={q}
+                        href={videoLinks[q]}
+                        download={`${info?.title || 'episode'}-ep${currentEp}-${q}.mp4`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/40 transition text-sm font-bold"
+                      >
+                        <Download size={14} />
+                        {q}
+                      </a>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Prev / Next Nav */}
