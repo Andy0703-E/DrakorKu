@@ -1,65 +1,79 @@
-import { useEffect, useState } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { fetchStreamingLink, fetchDrakorInfo } from '../api/config';
-import { ChevronLeft, Settings, Share2 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { fetchStreamingLink, fetchDrakorInfo, fetchEpisodes } from '../api/config';
+import { ChevronLeft, ChevronRight, Settings, Share2, Play } from 'lucide-react';
 
 export default function Watch() {
   const { id, ep } = useParams();
   const [searchParams] = useSearchParams();
   const streamingId = searchParams.get('streaming');
+  const navigate = useNavigate();
 
   const [videoLinks, setVideoLinks] = useState(null);
   const [info, setInfo] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
   const [selectedQuality, setSelectedQuality] = useState('720p');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [playerKey, setPlayerKey] = useState(0); // force video remount
+
+  const currentEp = parseInt(ep) || 1;
 
   useEffect(() => {
     const getData = async () => {
       try {
         setLoading(true);
+        setError(null);
+        setVideoLinks(null);
 
-        const [links, infoData] = await Promise.all([
-          fetchStreamingLink(streamingId, id, ep),
-          fetchDrakorInfo(id)
+        const [links, infoData, epData] = await Promise.all([
+          fetchStreamingLink(streamingId, id, currentEp),
+          fetchDrakorInfo(id),
+          fetchEpisodes(id),
         ]);
 
         setVideoLinks(links);
         setInfo(infoData.data || infoData);
+        setEpisodes(epData.data || []);
 
+        // Pilih kualitas terbaik yang tersedia
         if (links?.['720p']) setSelectedQuality('720p');
         else if (links?.['480p']) setSelectedQuality('480p');
         else if (links?.['360p']) setSelectedQuality('360p');
 
+        // Force remount video element setiap ganti episode
+        setPlayerKey(prev => prev + 1);
+
       } catch (err) {
         console.error(err);
-        setError('Gagal memuat player video.');
+        setError('Gagal memuat player video. Coba episode lain.');
       } finally {
         setLoading(false);
       }
     };
 
-    getData();
-  }, [id, ep, streamingId]);
+    if (streamingId) {
+      getData();
+    } else {
+      setLoading(false);
+      setError('Streaming ID tidak ditemukan. Kembali dan pilih episode.');
+    }
+  }, [id, ep, streamingId]); // reactive terhadap perubahan episode
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="animate-pulse text-primary font-bold text-lg">
-          Menyiapkan Player...
-        </div>
-      </div>
-    );
-  }
+  const handleEpisodeClick = (epData) => {
+    navigate(`/watch/${id}/${epData.episode_number}?streaming=${epData.streaming}`);
+  };
+
+  const prevEp = episodes.find(e => e.episode_number === currentEp - 1);
+  const nextEp = episodes.find(e => e.episode_number === currentEp + 1);
 
   return (
     <div className="min-h-screen bg-black text-white">
 
-      {/* HEADER (FIXED + GLASS) */}
-      <div className="sticky top-0 z-50 backdrop-blur-md bg-black/70 border-b border-white/10">
+      {/* HEADER */}
+      <div className="sticky top-0 z-50 backdrop-blur-md bg-black/80 border-b border-white/10">
         <div className="container mx-auto px-4 md:px-6 py-3 flex items-center justify-between">
 
-          {/* LEFT */}
           <Link
             to={`/drakor/${id}`}
             className="flex items-center gap-2 text-gray-300 hover:text-white transition"
@@ -68,17 +82,15 @@ export default function Watch() {
             <span className="hidden md:inline">Kembali</span>
           </Link>
 
-          {/* CENTER */}
           <div className="text-center flex-1 px-2">
             <h1 className="font-bold text-sm md:text-lg truncate">
-              {info?.title || 'Loading...'}
+              {info?.title || '...'}
             </h1>
             <p className="text-primary text-xs font-semibold">
-              Episode {ep}
+              Episode {currentEp}
             </p>
           </div>
 
-          {/* RIGHT */}
           <div className="flex items-center gap-3 text-gray-400">
             <Share2 size={18} className="hover:text-white cursor-pointer" />
             <Settings size={18} className="hover:text-white cursor-pointer" />
@@ -89,30 +101,33 @@ export default function Watch() {
 
       {/* VIDEO PLAYER */}
       <div className="w-full aspect-video bg-black relative">
-        {error ? (
-          <div className="absolute inset-0 flex items-center justify-center text-red-500 text-center px-6">
-            {error}
+        {loading ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-gray-400 text-sm">Menyiapkan episode {currentEp}...</p>
+          </div>
+        ) : error ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-4">
+            <p className="text-red-400">{error}</p>
+            <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
+              Kembali ke Detail
+            </Link>
           </div>
         ) : videoLinks?.[selectedQuality] ? (
           <video
-            key={videoLinks[selectedQuality]}
+            key={`${playerKey}-${selectedQuality}`}
             controls
             autoPlay
             className="w-full h-full"
             poster={info?.image}
           >
             <source src={videoLinks[selectedQuality]} type="video/mp4" />
-            Browser tidak support video
+            Browser tidak support video HTML5.
           </video>
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 text-center px-6">
-            <p className="mb-4">
-              Link streaming tidak tersedia untuk episode ini.
-            </p>
-            <Link
-              to={`/drakor/${id}`}
-              className="bg-primary px-6 py-2 rounded-full text-white"
-            >
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 text-center px-6 gap-4">
+            <p>Link streaming tidak tersedia untuk episode ini.</p>
+            <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
               Kembali
             </Link>
           </div>
@@ -120,26 +135,19 @@ export default function Watch() {
       </div>
 
       {/* INFO SECTION */}
-      <div className="container mx-auto px-4 md:px-6 py-10">
+      <div className="container mx-auto px-4 md:px-6 py-8">
 
-        <div className="flex flex-col md:flex-row justify-between gap-8">
+        {/* QUALITY + NAV */}
+        <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
 
-          {/* LEFT */}
-          <div className="flex-1">
-            <h2 className="text-xl md:text-2xl font-bold mb-2">
-              Episode {ep}
-            </h2>
-
-            <p className="text-gray-400 mb-6">
-              Kualitas:{" "}
-              <span className="text-primary font-bold">
-                {selectedQuality}
-              </span>
+          {/* Quality Selector */}
+          <div>
+            <h2 className="text-lg font-bold mb-3">Episode {currentEp}</h2>
+            <p className="text-gray-400 text-sm mb-3">
+              Kualitas: <span className="text-primary font-bold">{selectedQuality}</span>
             </p>
-
-            {/* QUALITY SELECT */}
             <div className="flex gap-3 flex-wrap">
-              {['360p', '480p', '720p'].map(q => (
+              {['360p', '480p', '720p'].map(q =>
                 videoLinks?.[q] && (
                   <button
                     key={q}
@@ -153,35 +161,63 @@ export default function Watch() {
                     {q}
                   </button>
                 )
-              ))}
+              )}
             </div>
           </div>
 
-          {/* EPISODE LIST */}
-          <div className="glass p-5 rounded-2xl w-full md:w-80">
-            <h3 className="font-bold mb-4">Episode</h3>
-
-            <div className="grid grid-cols-4 gap-2">
-              {[...Array(12)].map((_, i) => (
-                <Link
-                  key={i}
-                  to={`/watch/${id}/${i + 1}?streaming=${streamingId}`}
-                  className={`py-2 text-center rounded text-xs font-bold transition ${
-                    parseInt(ep) === i + 1
-                      ? 'bg-primary text-white'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  {i + 1}
-                </Link>
-              ))}
-            </div>
-
+          {/* Prev / Next Nav */}
+          <div className="flex items-center gap-3">
+            {prevEp ? (
+              <button
+                onClick={() => handleEpisodeClick(prevEp)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition text-sm"
+              >
+                <ChevronLeft size={16} /> Ep {prevEp.episode_number}
+              </button>
+            ) : (
+              <span />
+            )}
+            {nextEp ? (
+              <button
+                onClick={() => handleEpisodeClick(nextEp)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary hover:bg-red-600 transition text-sm font-bold"
+              >
+                Ep {nextEp.episode_number} <ChevronRight size={16} />
+              </button>
+            ) : (
+              <span />
+            )}
           </div>
 
         </div>
-      </div>
 
+        {/* EPISODE LIST */}
+        <div className="glass p-5 rounded-2xl">
+          <h3 className="font-bold mb-4 text-sm text-gray-300 uppercase tracking-widest">
+            Semua Episode
+          </h3>
+          {episodes.length === 0 ? (
+            <p className="text-gray-500 text-sm">Memuat daftar episode...</p>
+          ) : (
+            <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-12 gap-2">
+              {episodes.map((epItem) => (
+                <button
+                  key={epItem.episode_number}
+                  onClick={() => handleEpisodeClick(epItem)}
+                  className={`py-2 text-center rounded-lg text-xs font-bold transition ${
+                    currentEp === epItem.episode_number
+                      ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                      : 'bg-white/5 text-gray-400 hover:bg-white/15'
+                  }`}
+                >
+                  {epItem.episode_number}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
