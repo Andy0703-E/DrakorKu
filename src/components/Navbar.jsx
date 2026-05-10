@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Search, Play, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -6,6 +6,7 @@ export default function Navbar() {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSearch = (e) => {
     if (e.key === 'Enter' && query.trim()) {
@@ -16,7 +17,7 @@ export default function Navbar() {
 
   return (
     <nav className="glass sticky top-0 z-50 px-4 md:px-6 py-4">
-      <div className="container mx-auto flex items-center justify-between">
+      <div className="container mx-auto flex items-center justify-between max-w-[1400px] relative">
 
         {/* LOGO */}
         <Link to="/" className="flex items-center gap-2">
@@ -30,24 +31,24 @@ export default function Navbar() {
         </Link>
 
         {/* DESKTOP MENU */}
-        <div className="hidden md:flex items-center gap-8">
-          <Link to="/" className="nav-link">Beranda</Link>
-          <Link to="/ongoing" className="nav-link">Ongoing</Link>
-          <Link to="/recommended" className="nav-link">Recommended</Link>
-          <Link to="/movie" className="nav-link">Movie</Link>
+        <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+          <Link to="/" className={`transition-colors duration-200 ${location.pathname === '/' ? 'text-white font-bold' : 'text-gray-400 hover:text-primary font-medium'}`}>Beranda</Link>
+          <Link to="/ongoing" className={`transition-colors duration-200 ${location.pathname === '/ongoing' ? 'text-white font-bold' : 'text-gray-400 hover:text-primary font-medium'}`}>Ongoing</Link>
+          <Link to="/recommended" className={`transition-colors duration-200 ${location.pathname === '/recommended' ? 'text-white font-bold' : 'text-gray-400 hover:text-primary font-medium'}`}>Recommended</Link>
+          <Link to="/movie" className={`transition-colors duration-200 ${location.pathname === '/movie' ? 'text-white font-bold' : 'text-gray-400 hover:text-primary font-medium'}`}>Movie</Link>
         </div>
 
         {/* SEARCH DESKTOP */}
-        <div className="hidden md:flex items-center bg-white/10 rounded-full px-4 py-2">
+        <div className="hidden md:flex items-center bg-white/10 rounded-full px-4 py-2 border border-transparent focus-within:border-primary/50 focus-within:bg-white/20 transition-all group">
           <input
             type="text"
             placeholder="Cari drama..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleSearch}
-            className="bg-transparent outline-none text-sm w-40 md:w-64"
+            className="bg-transparent outline-none text-sm w-40 md:w-64 text-white placeholder-gray-400"
           />
-          <Search size={18} className="text-gray-400 ml-2" />
+          <Search size={18} className="text-gray-400 group-focus-within:text-primary transition-colors cursor-pointer" onClick={() => { if(query.trim()) { navigate(`/search?q=${query}`); setOpen(false); } }} />
         </div>
 
         {/* HAMBURGER MOBILE */}

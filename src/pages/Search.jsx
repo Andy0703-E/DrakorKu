@@ -29,19 +29,19 @@ export default function Search() {
   }, [q]);
 
   return (
-    <div className="min-h-screen container mx-auto px-6 py-10">
+    <div className="min-h-screen container mx-auto px-6 py-10 max-w-[1400px]">
       <h1 className="text-2xl font-bold text-white mb-6">
         Hasil pencarian: <span className="text-primary">{q}</span>
       </h1>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {[...Array(10)].map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
+          {[...Array(14)].map((_, i) => (
             <div key={i} className="aspect-[2/3] bg-dark-accent animate-pulse rounded-xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
           {data.length > 0 ? (
             data.map((item, i) => (
               <Card key={i} data={item} />

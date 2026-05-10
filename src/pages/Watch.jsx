@@ -156,7 +156,7 @@ export default function Watch() {
       </div>
 
       {/* VIDEO PLAYER */}
-      <div className="w-full aspect-video bg-black relative">
+      <div className="w-full aspect-video md:aspect-auto md:h-[75vh] bg-black relative flex justify-center">
         {loading ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -175,7 +175,7 @@ export default function Watch() {
             key={`${id}-${ep}-${selectedQuality}`}
             controls
             autoPlay
-            className="w-full h-full"
+            className="w-full h-full md:max-w-6xl object-contain"
             poster={info?.image}
             onCanPlay={handleCanPlay}
           >
@@ -193,7 +193,7 @@ export default function Watch() {
       </div>
 
       {/* INFO SECTION */}
-      <div className="container mx-auto px-4 md:px-6 py-8">
+      <div className="container mx-auto px-4 md:px-6 py-8 max-w-[1400px]">
 
         <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
 

@@ -41,7 +41,7 @@ export default function Detail() {
         {/* background */}
         <img
           src={info?.image}
-          className="absolute inset-0 w-full h-full object-cover scale-110 opacity-30"
+          className="absolute inset-0 w-full h-full object-cover scale-110 opacity-30 object-top"
         />
 
         {/* gradient */}
@@ -55,7 +55,7 @@ export default function Detail() {
             {/* POSTER FLOAT */}
             <img
               src={info?.image}
-              className="w-40 md:w-60 rounded-xl shadow-2xl border border-white/10 -translate-y-6"
+              className="w-40 md:w-60 lg:w-72 rounded-xl shadow-2xl border border-white/10 -translate-y-6"
             />
 
             {/* INFO */}
@@ -110,12 +110,12 @@ export default function Detail() {
       </div>
 
       {/* CONTENT */}
-      <div className="container mx-auto px-5 md:px-20 py-10">
+      <div className="container mx-auto px-5 md:px-20 py-10 max-w-[1400px]">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-10">
 
           {/* EPISODES */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 xl:col-span-3">
 
             <h2 className="text-xl md:text-2xl font-bold mb-6">
               Episodes
