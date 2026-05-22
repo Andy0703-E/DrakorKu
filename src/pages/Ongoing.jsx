@@ -10,44 +10,57 @@ export default function Ongoing() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchPage = useCallback(async (pageNum, isInitial = false) => {
-    try {
-      if (isInitial) setLoading(true);
-      else setLoadingMore(true);
+  useEffect(() => {
+    let cancelled = false;
 
-      if (isInitial) {
-        const [p1, p2, p3] = await Promise.all([
-          fetchOngoingDrakor(1),
-          fetchOngoingDrakor(2),
-          fetchOngoingDrakor(3),
-        ]);
-        const combined = [
-          ...(p1.data || []),
-          ...(p2.data || []),
-          ...(p3.data || []),
-        ];
-        setDrakors(combined);
+    async function loadInitial() {
+      try {
+        const p1Promise = fetchOngoingDrakor(1);
+        const p2Promise = fetchOngoingDrakor(2);
+        const p3Promise = fetchOngoingDrakor(3);
+
+        p1Promise.then(p1 => {
+          if (!cancelled) {
+            setDrakors(p1.data || []);
+            setPage(2);
+            setLoading(false);
+          }
+        });
+
+        const [, p2, p3] = await Promise.all([p1Promise, p2Promise, p3Promise]);
+        if (cancelled) return;
+
+        setDrakors(prev => [...prev, ...(p2.data || []), ...(p3.data || [])]);
         setPage(4);
         if (!(p3.data && p3.data.length > 0)) setHasMore(false);
-      } else {
-        const data = await fetchOngoingDrakor(pageNum);
-        const newItems = data.data || [];
-        setDrakors(prev => [...prev, ...newItems]);
-        setPage(pageNum + 1);
-        if (newItems.length === 0) setHasMore(false);
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        setError('Gagal mengambil data ongoing.');
+        if (!cancelled) setLoading(false);
       }
+    }
+
+    loadInitial();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    try {
+      setLoadingMore(true);
+      const data = await fetchOngoingDrakor(page);
+      const newItems = data.data || [];
+      setDrakors(prev => [...prev, ...newItems]);
+      setPage(prev => prev + 1);
+      if (newItems.length === 0) setHasMore(false);
     } catch (err) {
       console.error(err);
       setError('Gagal mengambil data ongoing.');
     } finally {
-      setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchPage(1, true);
-  }, [fetchPage]);
+  }, [page]);
 
   return (
     <div className="min-h-screen container mx-auto px-6 py-10 max-w-[1400px]">
@@ -73,8 +86,8 @@ export default function Ongoing() {
       ) : error ? (
         <div className="text-center py-20">
           <p className="text-red-500 text-lg mb-4">{error}</p>
-          <button
-            onClick={() => fetchPage(1, true)}
+            <button
+            onClick={() => window.location.reload()}
             className="bg-primary/20 text-primary border border-primary/30 px-6 py-2 rounded-full hover:bg-primary hover:text-white transition-all"
           >
             Coba Lagi
@@ -104,11 +117,11 @@ export default function Ongoing() {
                 </div>
               ) : (
                 <button
-                  onClick={() => fetchPage(page)}
-                  className="bg-primary hover:bg-red-700 text-white px-10 py-3 rounded-full font-bold transition-all hover:scale-105 shadow-lg shadow-primary/30"
-                >
-                  Muat Lebih Banyak
-                </button>
+                    onClick={handleLoadMore}
+                    className="bg-primary hover:bg-red-700 text-white px-10 py-3 rounded-full font-bold transition-all hover:scale-105 shadow-lg shadow-primary/30"
+                  >
+                    Muat Lebih Banyak
+                  </button>
               )}
             </div>
           )}

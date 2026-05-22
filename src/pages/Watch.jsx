@@ -31,7 +31,7 @@ export default function Watch() {
 
   const videoRef = useRef(null);
   const savedTimeRef = useRef(0); // simpan posisi video sebelum ganti kualitas
-  const isSwitchingQuality = useRef(false); // flag: sedang ganti kualitas (bukan ganti episode)
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false); // flag: sedang ganti kualitas
 
   const currentEp = parseInt(ep) || 1;
 
@@ -51,13 +51,17 @@ export default function Watch() {
 
   // Load data episode
   useEffect(() => {
-    const getData = async () => {
+    if (!streamingId) return;
+
+    let cancelled = false;
+
+    async function getData() {
       try {
         setLoading(true);
         setError(null);
         setVideoLinks(null);
-        savedTimeRef.current = 0; // reset posisi saat ganti episode
-        isSwitchingQuality.current = false;
+        savedTimeRef.current = 0;
+        setIsSwitchingQuality(false);
 
         const [links, infoData, epData] = await Promise.all([
           fetchStreamingLink(streamingId, id, currentEp),
@@ -65,11 +69,12 @@ export default function Watch() {
           fetchEpisodes(id),
         ]);
 
+        if (cancelled) return;
+
         setVideoLinks(links);
         setInfo(infoData.data || infoData);
         setEpisodes(epData.data || []);
 
-        // Pilih kualitas berdasarkan jaringan, tapi sesuaikan ketersediaan
         const preferredQ = getQualityFromNetwork();
         if (links?.[preferredQ]) setSelectedQuality(preferredQ);
         else if (links?.['720p']) setSelectedQuality('720p');
@@ -77,19 +82,18 @@ export default function Watch() {
         else if (links?.['360p']) setSelectedQuality('360p');
 
       } catch (err) {
+        if (cancelled) return;
         console.error(err);
         setError('Gagal memuat player video. Coba episode lain.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
-
-    if (streamingId) getData();
-    else {
-      setLoading(false);
-      setError('Streaming ID tidak ditemukan. Kembali dan pilih episode.');
     }
-  }, [id, ep, streamingId]);
+
+    getData();
+
+    return () => { cancelled = true; };
+  }, [id, ep, streamingId, currentEp]);
 
   // Saat ganti kualitas: simpan waktu sekarang, set flag, lalu ganti
   const handleQualityChange = useCallback((q) => {
@@ -98,18 +102,18 @@ export default function Watch() {
     } else if (videoRef.current) {
       savedTimeRef.current = videoRef.current.currentTime;
     }
-    isSwitchingQuality.current = true;
+    setIsSwitchingQuality(true);
     setSelectedQuality(q);
   }, []);
 
   // Setelah video baru bisa diputar: lanjut dari posisi tersimpan
   const handleCanPlay = useCallback(() => {
-    if (isSwitchingQuality.current && savedTimeRef.current > 0 && videoRef.current) {
+    if (isSwitchingQuality && savedTimeRef.current > 0 && videoRef.current) {
       videoRef.current.currentTime = savedTimeRef.current;
       videoRef.current.play().catch(() => {});
-      isSwitchingQuality.current = false;
+      setIsSwitchingQuality(false);
     }
-  }, []);
+  }, [isSwitchingQuality]);
 
   const handleEpisodeClick = (epData) => {
     navigate(`/watch/${id}/${epData.episode_number}?streaming=${epData.streaming}`);
@@ -117,6 +121,19 @@ export default function Watch() {
 
   const prevEp = episodes.find(e => e.episode_number === currentEp - 1);
   const nextEp = episodes.find(e => e.episode_number === currentEp + 1);
+
+  if (!streamingId) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center px-6 py-20">
+          <p className="text-red-400 text-lg mb-4">Streaming ID tidak ditemukan. Pilih episode terlebih dahulu.</p>
+          <Link to={`/drakor/${id}`} className="inline-block bg-primary px-6 py-2 rounded-full text-white">
+            Kembali ke Detail
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -213,7 +230,7 @@ export default function Watch() {
             {/* Quality Selector */}
             <p className="text-gray-400 text-sm mb-2">
               Sedang diputar: <span className="text-primary font-bold">{selectedQuality}</span>
-              {isSwitchingQuality.current && (
+              {isSwitchingQuality && (
                 <span className="ml-2 text-xs text-yellow-400">Melanjutkan dari posisi sebelumnya...</span>
               )}
             </p>

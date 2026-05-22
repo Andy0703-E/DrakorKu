@@ -11,44 +11,57 @@ export default function Movie() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchPage = useCallback(async (pageNum, isInitial = false) => {
-    try {
-      if (isInitial) setLoading(true);
-      else setLoadingMore(true);
+  useEffect(() => {
+    let cancelled = false;
 
-      if (isInitial) {
-        const [p1, p2, p3] = await Promise.all([
-          fetchMovieDrakor(1),
-          fetchMovieDrakor(2),
-          fetchMovieDrakor(3),
-        ]);
-        const combined = [
-          ...(p1.data || []),
-          ...(p2.data || []),
-          ...(p3.data || []),
-        ];
-        setMovies(combined);
+    async function loadInitial() {
+      try {
+        const p1Promise = fetchMovieDrakor(1);
+        const p2Promise = fetchMovieDrakor(2);
+        const p3Promise = fetchMovieDrakor(3);
+
+        p1Promise.then(p1 => {
+          if (!cancelled) {
+            setMovies(p1.data || []);
+            setPage(2);
+            setLoading(false);
+          }
+        });
+
+        const [, p2, p3] = await Promise.all([p1Promise, p2Promise, p3Promise]);
+        if (cancelled) return;
+
+        setMovies(prev => [...prev, ...(p2.data || []), ...(p3.data || [])]);
         setPage(4);
         if (!(p3.data && p3.data.length > 0)) setHasMore(false);
-      } else {
-        const response = await fetchMovieDrakor(pageNum);
-        const newItems = response.data || [];
-        setMovies(prev => [...prev, ...newItems]);
-        setPage(pageNum + 1);
-        if (newItems.length === 0) setHasMore(false);
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        setError('Gagal mengambil data movie.');
+        if (!cancelled) setLoading(false);
       }
+    }
+
+    loadInitial();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    try {
+      setLoadingMore(true);
+      const response = await fetchMovieDrakor(page);
+      const newItems = response.data || [];
+      setMovies(prev => [...prev, ...newItems]);
+      setPage(prev => prev + 1);
+      if (newItems.length === 0) setHasMore(false);
     } catch (err) {
       console.error(err);
       setError('Gagal mengambil data movie.');
     } finally {
-      setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchPage(1, true);
-  }, [fetchPage]);
+  }, [page]);
 
   return (
     <div className="min-h-screen container mx-auto px-6 py-10 max-w-[1400px]">
@@ -81,7 +94,7 @@ export default function Movie() {
         <div className="text-center py-24">
           <p className="text-red-500 text-lg mb-4">{error}</p>
           <button
-            onClick={() => fetchPage(1, true)}
+            onClick={() => window.location.reload()}
             className="bg-primary hover:bg-red-700 px-6 py-3 rounded-full text-white font-semibold transition-all"
           >
             Coba Lagi
@@ -113,12 +126,12 @@ export default function Movie() {
                   Memuat lebih banyak...
                 </div>
               ) : (
-                <button
-                  onClick={() => fetchPage(page)}
-                  className="bg-primary hover:bg-red-700 text-white px-10 py-3 rounded-full font-bold transition-all hover:scale-105 shadow-lg shadow-primary/30"
-                >
-                  Muat Lebih Banyak
-                </button>
+                  <button
+                    onClick={handleLoadMore}
+                    className="bg-primary hover:bg-red-700 text-white px-10 py-3 rounded-full font-bold transition-all hover:scale-105 shadow-lg shadow-primary/30"
+                  >
+                    Muat Lebih Banyak
+                  </button>
               )}
             </div>
           )}

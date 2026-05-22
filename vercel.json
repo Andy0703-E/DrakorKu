@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/drakor", "destination": "/api/drakor" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
