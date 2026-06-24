@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { fetchStreamingLink, fetchDrakorInfo, fetchEpisodes } from '../api/config';
-import { ChevronLeft, ChevronRight, Settings, Share2, Download, Wifi } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, Share2, Download, Wifi, Coffee } from 'lucide-react';
+import qrisImage from '../../assets/image/qris.jpeg';
 
 // Deteksi kualitas terbaik berdasarkan jaringan
 function getQualityFromNetwork() {
@@ -29,11 +30,35 @@ export default function Watch() {
   const [error, setError] = useState(null);
   const [networkQuality, setNetworkQuality] = useState('');
 
+  const [showTraktir, setShowTraktir] = useState(true);
+  const [traktirCountdown, setTraktirCountdown] = useState(10);
+
   const videoRef = useRef(null);
-  const savedTimeRef = useRef(0); // simpan posisi video sebelum ganti kualitas
-  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false); // flag: sedang ganti kualitas
+  const savedTimeRef = useRef(0);
+  const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
 
   const currentEp = parseInt(ep) || 1;
+
+  // Countdown auto-dismiss untuk traktir screen
+  useEffect(() => {
+    if (!showTraktir || traktirCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setTraktirCountdown(prev => {
+        if (prev <= 1) {
+          setShowTraktir(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showTraktir, traktirCountdown]);
+
+  // Reset traktir saat ganti episode
+  useEffect(() => {
+    setShowTraktir(true);
+    setTraktirCountdown(10);
+  }, [id, ep, streamingId]);
 
   // Auto-detect network quality saat pertama load dan saat koneksi berubah
   useEffect(() => {
@@ -172,42 +197,64 @@ export default function Watch() {
         </div>
       </div>
 
-      {/* VIDEO PLAYER */}
-      <div className="w-full aspect-video md:aspect-auto md:h-[75vh] bg-black relative flex justify-center">
-        {loading ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-400 text-sm">Menyiapkan episode {currentEp}...</p>
+      {showTraktir && !loading && !error && videoLinks?.[selectedQuality] ? (
+        <div className="flex flex-col items-center justify-center min-h-[70vh] bg-black px-4 py-12">
+          <div className="flex items-center gap-2 mb-6">
+            <Coffee size={28} className="text-primary" />
+            <h2 className="text-2xl md:text-3xl font-bold text-white">Traktir Kopi</h2>
           </div>
-        ) : error ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-4">
-            <p className="text-red-400">{error}</p>
-            <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
-              Kembali ke Detail
-            </Link>
-          </div>
-        ) : videoLinks?.[selectedQuality] ? (
-          <video
-            ref={videoRef}
-            key={`${id}-${ep}-${selectedQuality}`}
-            controls
-            autoPlay
-            className="w-full h-full md:max-w-6xl object-contain"
-            poster={info?.image}
-            onCanPlay={handleCanPlay}
+          <img
+            src={qrisImage}
+            alt="QRIS"
+            className="w-56 h-56 md:w-72 md:h-72 object-contain mb-6 rounded-2xl shadow-lg shadow-primary/20"
+          />
+          <p className="text-gray-300 text-center max-w-md text-sm md:text-base leading-relaxed mb-8">
+            Jika aplikasi ini bermanfaat, Anda dapat memberikan dukungan melalui QRIS. Dukungan Anda membantu pengembangan dan pemeliharaan aplikasi agar terus berkembang.
+          </p>
+          <button
+            onClick={() => setShowTraktir(false)}
+            className="bg-primary hover:bg-red-600 text-white font-bold px-10 py-3.5 rounded-full transition-all duration-300 hover:scale-105 active:scale-95 text-lg"
           >
-            <source src={videoLinks[selectedQuality]} type="video/mp4" />
-            Browser tidak support video HTML5.
-          </video>
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 text-center px-6 gap-4">
-            <p>Link streaming tidak tersedia untuk episode ini.</p>
-            <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
-              Kembali
-            </Link>
-          </div>
-        )}
-      </div>
+            Lanjutkan Nonton ({traktirCountdown}s)
+          </button>
+        </div>
+      ) : (
+        <div className="w-full aspect-video md:aspect-auto md:h-[75vh] bg-black relative flex justify-center">
+          {loading ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              <p className="text-gray-400 text-sm">Menyiapkan episode {currentEp}...</p>
+            </div>
+          ) : error ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 gap-4">
+              <p className="text-red-400">{error}</p>
+              <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
+                Kembali ke Detail
+              </Link>
+            </div>
+          ) : videoLinks?.[selectedQuality] ? (
+            <video
+              ref={videoRef}
+              key={`${id}-${ep}-${selectedQuality}`}
+              controls
+              autoPlay
+              className="w-full h-full md:max-w-6xl object-contain"
+              poster={info?.image}
+              onCanPlay={handleCanPlay}
+            >
+              <source src={videoLinks[selectedQuality]} type="video/mp4" />
+              Browser tidak support video HTML5.
+            </video>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500 text-center px-6 gap-4">
+              <p>Link streaming tidak tersedia untuk episode ini.</p>
+              <Link to={`/drakor/${id}`} className="bg-primary px-6 py-2 rounded-full text-white">
+                Kembali
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* INFO SECTION */}
       <div className="container mx-auto px-4 md:px-6 py-8 max-w-[1400px]">
