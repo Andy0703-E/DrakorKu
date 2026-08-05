@@ -1,58 +1,70 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Search as SearchIcon } from 'lucide-react';
 import { searchDrakor } from '../api/config';
 import Card from '../components/Card';
+import { EmptyState, PosterSkeleton } from '../components/PosterGrid';
 
 export default function Search() {
   const [params] = useSearchParams();
-  const q = params.get('q');
+  const navigate = useNavigate();
+  const query = (params.get('q') || '').trim();
+  const [input, setInput] = useState(query);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(Boolean(query));
+  const [error, setError] = useState('');
 
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const loadSearch = useCallback(async () => {
+    if (!query) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const response = await searchDrakor(query);
+      setItems(Array.isArray(response?.data) ? response.data : []);
+    } catch {
+      setError('Pencarian belum dapat dilakukan. Coba lagi sebentar lagi.');
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
 
   useEffect(() => {
-    const loadSearch = async () => {
-      try {
-        setLoading(true);
+    const timer = window.setTimeout(() => {
+      setInput(query);
+      loadSearch();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadSearch, query]);
 
-        const res = await searchDrakor(q);
-
-        setData(res.data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (q) loadSearch();
-  }, [q]);
+  const submit = (event) => {
+    event.preventDefault();
+    const value = input.trim();
+    if (value) navigate(`/search?q=${encodeURIComponent(value)}`);
+  };
 
   return (
-    <div className="min-h-screen container mx-auto px-6 py-10 max-w-[1400px]">
-      <h1 className="text-2xl font-bold text-white mb-6">
-        Hasil pencarian: <span className="text-primary">{q}</span>
-      </h1>
+    <section className="page-shell">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-400 transition hover:text-white"><ArrowLeft size={16} /> Kembali ke katalog</Link>
+      <div className="mt-7 max-w-3xl">
+        <p className="section-kicker">Pencarian katalog</p>
+        <h1 className="mt-3 text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl">Cari tontonanmu.</h1>
+        <form onSubmit={submit} className="mt-6 flex gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.04] p-2 focus-within:border-lime-300/60">
+          <label className="flex min-w-0 flex-1 items-center gap-3 px-3 text-slate-400"><SearchIcon size={19} /><input value={input} onChange={(event) => setInput(event.target.value)} type="search" autoFocus placeholder="Contoh: romance, thriller, judul drama" className="min-w-0 flex-1 bg-transparent py-2 text-sm text-white outline-none placeholder:text-slate-500" /></label>
+          <button type="submit" className="button-primary shrink-0 px-4 sm:px-5"><span className="hidden sm:inline">Cari</span><SearchIcon size={17} /></button>
+        </form>
+      </div>
 
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-          {[...Array(14)].map((_, i) => (
-            <div key={i} className="aspect-[2/3] bg-dark-accent animate-pulse rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-6">
-          {data.length > 0 ? (
-            data.map((item, i) => (
-              <Card key={i} data={item} />
-            ))
-          ) : (
-            <p className="text-gray-500 col-span-full text-center">
-              Tidak ditemukan hasil
-            </p>
-          )}
-        </div>
-      )}
-    </div>
+      <div className="mt-10">
+        {!query ? <EmptyState title="Masukkan judul atau kata kunci" description="Gunakan pencarian untuk menemukan drama, movie, atau genre favoritmu." /> : loading ? <PosterSkeleton /> : error ? (
+          <EmptyState title="Pencarian gagal" description={error} action={<button onClick={loadSearch} className="button-secondary">Coba lagi</button>} />
+        ) : items.length ? (
+          <><p className="mb-5 text-sm text-slate-400">Ditemukan <strong className="text-white">{items.length}</strong> hasil untuk <strong className="text-lime-300">“{query}”</strong></p><div className="poster-grid">{items.map((item, index) => <Card key={`${item.id || index}-${index}`} data={item} />)}</div></>
+        ) : <EmptyState title="Belum menemukan hasil" description={`Tidak ada judul yang cocok dengan “${query}”. Coba kata kunci yang lebih singkat.`} />}
+      </div>
+    </section>
   );
 }
